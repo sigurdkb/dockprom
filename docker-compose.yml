@@ -1,8 +1,7 @@
-version: '2.1'
+version: '3.1'
 
 networks:
   monitor-net:
-    driver: bridge
 
 volumes:
     prometheus_data: {}
@@ -11,20 +10,20 @@ volumes:
 services:
 
   prometheus:
-    image: prom/prometheus:v1.8.0
+    image: prom/prometheus:v2.0.0
     container_name: prometheus
     volumes:
       - ./prometheus/:/etc/prometheus/
       - prometheus_data:/prometheus
     command:
-      - '-config.file=/etc/prometheus/prometheus.yml'
-      - '-storage.local.path=/prometheus'
-      - '-web.console.libraries=/etc/prometheus/console_libraries'
-      - '-web.console.templates=/etc/prometheus/consoles'
-      - '-alertmanager.url=http://alertmanager:9093'
-      - '-storage.local.target-heap-size=1073741824'
-      - '-storage.local.retention=200h'
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention=90d'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
     restart: unless-stopped
+    depends_on:
+      - cadvisor
     expose:
       - 9090
     networks:
@@ -48,9 +47,9 @@ services:
     labels:
       org.label-schema.group: "monitoring"
 
-  nodeexporter:
-    image: prom/node-exporter:v0.15.0
-    container_name: nodeexporter
+  node-exporter:
+    image: prom/node-exporter
+    container_name: node-exporter
     user: root
     privileged: true
     volumes:
@@ -60,7 +59,9 @@ services:
     command:
       - '--path.procfs=/host/proc'
       - '--path.sysfs=/host/sys'
-      - '--collector.filesystem.ignored-mount-points=^/(sys|proc|dev|host|etc)($$|/)'
+#      - '--collector.filesystem.ignored-mount-points=^/(sys|proc|dev|host|etc)($$|/)'
+      - --collector.filesystem.ignored-mount-points
+      - "^/(sys|proc|dev|host|etc|rootfs/var/lib/docker/containers|rootfs/var/lib/docker/overlay2|rootfs/run/docker/netns|rootfs/var/lib/docker/aufs)($$|/)"
     restart: unless-stopped
     expose:
       - 9100
@@ -70,7 +71,7 @@ services:
       org.label-schema.group: "monitoring"
 
   cadvisor:
-    image: google/cadvisor:v0.27.1
+    image: google/cadvisor
     container_name: cadvisor
     volumes:
       - /:/rootfs:ro
@@ -87,14 +88,14 @@ services:
       org.label-schema.group: "monitoring"
   
   grafana:
-    image: grafana/grafana:4.5.2
+    image: grafana/grafana
     container_name: grafana
     volumes:
       - grafana_data:/var/lib/grafana
-      - ./grafana/datasources:/etc/grafana/datasources
-      - ./grafana/dashboards:/etc/grafana/dashboards
-      - ./grafana/setup.sh:/setup.sh
-    entrypoint: /setup.sh
+#      - ./grafana/datasources:/etc/grafana/datasources
+#      - ./grafana/dashboards:/etc/grafana/dashboards
+#      - ./grafana/setup.sh:/setup.sh
+#    entrypoint: /setup.sh
     environment:
       - GF_SECURITY_ADMIN_USER=${ADMIN_USER:-admin}
       - GF_SECURITY_ADMIN_PASSWORD=${ADMIN_PASSWORD:-admin}
